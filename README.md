@@ -25,6 +25,7 @@ This project analyzes user activity and content on Reddit during the US Election
 ## Project Documentation
 
 [Watch the Project Presentation](https://youtu.be/Bc9YMpr0kl0)
+
 [Read the Full Project Report](https://raw.githubusercontent.com/gabegagster/Reddit-US-Election-Analysis/main/Documentation/Documentation.pdf)
 
 ## Authors
