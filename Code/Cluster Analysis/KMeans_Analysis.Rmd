@@ -1,0 +1,273 @@
+---
+title: "K-Means Cluster Analysis Report"
+author: "Margarette"
+date: "2024-10-16"
+output: html_document
+---
+Install and load libraries
+
+```{r}
+# Install necessary packages
+# You can uncomment and install if these packages are not available
+# install.packages("tm")
+# install.packages("RPostgres")
+# install.packages("DBI")
+# install.packages("wordcloud")
+# install.packages("RColorBrewer")
+# install.packages("cluster")
+# install.packages("ggplot2")
+# install.packages("MASS")
+
+# Load libraries
+library(tm)
+library(RPostgres)
+library(DBI)
+library(Matrix)
+library(wordcloud)
+library(RColorBrewer)
+library(cluster)
+library(MASS)
+
+```
+
+Data Fetching
+```{r}
+# Fetch data from the database
+source("../dbconnect.R")
+
+# Fetch data from the database
+tablename_year <- "US_Election_Posts_Year_260924"
+tablename_month <- "US_Election_Posts_Month_260924"
+
+data_year <- dbGetQuery(con, paste('SELECT * FROM "', tablename_year, '"', sep = ""))
+data_month <- dbGetQuery(con, paste('SELECT * FROM "', tablename_month, '"', sep = ""))
+
+```
+
+Processing of text 
+
+```{r}
+
+# Text preprocessing function
+preprocess_text <- function(text_data) {
+  corpus <- Corpus(VectorSource(text_data))
+  corpus <- tm_map(corpus, content_transformer(tolower))
+  corpus <- tm_map(corpus, removePunctuation)
+  corpus <- tm_map(corpus, removeNumbers)
+  corpus <- tm_map(corpus, removeWords, stopwords("en"))
+  corpus <- tm_map(corpus, stripWhitespace)
+  
+  # Create Term Document Matrix
+  tdm <- TermDocumentMatrix(corpus)
+  dtm <- as.matrix(tdm)  # Convert to matrix
+  return(dtm)
+}
+
+# Preprocess year data
+tdm_year <- preprocess_text(data_year$text)
+cat("Year DTM Dimensions:", dim(tdm_year), "\n")
+
+# Preprocess month data
+tdm_month <- preprocess_text(data_month$text)
+cat("Month DTM Dimensions:", dim(tdm_month), "\n")
+
+```
+Rows and columns for year and month data
+Year DTM Dimensions: 6812 1220  
+Month DTM Dimensions: 6948 1105 
+
+
+Cleaning and normalising the data
+```{r}
+# Remove empty rows and columns for year DTM
+tdm_year <- tdm_year[rowSums(tdm_year) > 0, colSums(tdm_year) > 0]
+
+# Remove empty rows and columns for month DTM
+tdm_month <- tdm_month[rowSums(tdm_month) > 0, colSums(tdm_month) > 0]
+
+# Normalize DTM for clustering
+norm_tdm_year <- scale(tdm_year)
+norm_tdm_month <- scale(tdm_month)
+
+```
+
+Elbow method for cluster evaluation
+```{r}
+max_clusters <- 15
+SSW_year <- rep(0, max_clusters)
+SSB_year <- rep(0, max_clusters)
+SSW_month <- rep(0, max_clusters)
+SSB_month <- rep(0, max_clusters)
+
+# Compute SSW and SSB for Year Data
+for (k in 1:max_clusters) {
+  set.seed(1)
+  kmeans_year <- kmeans(norm_tdm_year, centers = k, nstart = 50)
+  SSW_year[k] <- kmeans_year$tot.withinss
+  SSB_year[k] <- kmeans_year$betweenss
+}
+
+# Compute SSW and SSB for Month Data
+for (k in 1:max_clusters) {
+  set.seed(1)
+  kmeans_month <- kmeans(norm_tdm_month, centers = k, nstart = 50)
+  SSW_month[k] <- kmeans_month$tot.withinss
+  SSB_month[k] <- kmeans_month$betweenss
+}
+
+# Plot Elbow Method for Year Data
+plot(1:max_clusters, SSW_year, type = 'b', col = 'darkgreen',
+     xlab = 'Number of Clusters', ylab = 'Within-Cluster Sum of Squares (SSW)',
+     main = 'SSW for Year Data')
+
+
+```
+In the within-sum of squares(SSW) plot, it looks that the elbow stops at nine clusters which is why 9 is the number of clusters that we will use 
+
+
+```{r}
+# Plot Elbow Method for Month Data
+plot(1:max_clusters, SSW_month, type = 'b', col = 'blue',
+     xlab = 'Number of Clusters', ylab = 'Within-Cluster Sum of Squares (SSW)',
+     main = 'SSW for Month Data')
+```
+It looks that the elbow in the within-cluster sum of squares (SSW) plot stop at 7, which is why 6 will be the number of clusters that we will use for the month
+
+
+K-means clustering
+
+```{r}
+set.seed(1)  # For reproducibility
+k_year <- 9  # Number of clusters for year data
+k_month <- 6  # Number of clusters for month data
+
+# Perform k-means clustering
+kmeans_year <- kmeans(norm_tdm_year, centers = k_year, nstart = 50)
+kmeans_month <- kmeans(norm_tdm_month, centers = k_month, nstart = 50)
+
+# Print clustering results
+cat("K-means Clustering Results for Year Data:\n")
+print(table(kmeans_year$cluster))
+cat("K-means Clustering Results for Month Data:\n")
+print(table(kmeans_month$cluster))
+
+```
+the fact that Cluster 1 is substantially bigger than the other suggests that most of the data points are being clustered together. This may mean that one data is predominating
+
+```{r}
+cat("K-means Clustering Results for Month Data:\n")
+print(table(kmeans_month$cluster))
+
+```
+with 6,664 data points, Cluster 2 is the largest and contains the vast majority of the data. Just like the Year data, Month data may have one data that is predominating.
+
+Word cloud
+```{r}
+# Word cloud for year data
+freqsw_year <- rowSums(tdm_year)
+wordcloud(names(freqsw_year), freqsw_year, random.order = FALSE, 
+          max.words = 45, colors = brewer.pal(8, "Dark2"), main = "Word Cloud for Year Data")
+
+```
+Trump being the most prominent word indicates that he dominates the conversation in this dataset. The discussion about him may be about his handling of political issues or controversies in regards with his administration.
+Biden being one of the focus on the dataset may have something to do with his policies,and the election outcome.
+Supreme court, there may have been some conversations about Donald Trump filling several lawsuits and some cases potentailly reaching the supreme court.
+
+
+```{r}
+# Word cloud for month data
+freqsw_month <- rowSums(tdm_month)
+wordcloud(names(freqsw_month), freqsw_month, random.order = FALSE, 
+          max.words = 45, colors = brewer.pal(8, "Dark2"), main = "Word Cloud for Month Data")
+```
+
+The dataset appears to be heavily focused on interactions involving or centred around Donald Trump, as evidenced by his dominating presence. This might have to do with his involvement in the US election, his policies, his controversies, or his remarks made in public.
+Harris being one of the words in the wordcloud suggest that the discussions revolves heabily around the political figures of the US election.
+Another word is election, people might be talking about who will likely win the Presidential election.
+
+
+Dinmentional scaling
+```{r}
+# Apply MDS to reduce the dimensionality
+set.seed(1)
+mds_year <- cmdscale(dist(norm_tdm_year), k = 2)
+mds_month <- cmdscale(dist(norm_tdm_month), k = 2)
+
+# Create data frames for plotting
+df_year <- data.frame(x = mds_year[, 1], y = mds_year[, 2], cluster = factor(kmeans_year$cluster))
+df_month <- data.frame(x = mds_month[, 1], y = mds_month[, 2], cluster = factor(kmeans_month$cluster))
+
+# Plot for Year Data
+# First, check if mds_year and kmeans_year$cluster have the same number of rows
+if (nrow(mds_year) == length(kmeans_year$cluster)) {
+  plot(mds_year, col = kmeans_year$cluster, pch = 16, 
+       xlab = "MDS Dimension 1", ylab = "MDS Dimension 2", 
+       main = "K-means Clustering of Year Data in 2D")
+  
+  # Check if kmeans_year$centers has the correct dimensions
+  if (nrow(kmeans_year$centers) == k_year) {
+    points(kmeans_year$centers, col = 1:k_year, pch = 3, cex = 2, lwd = 2)
+  } else {
+    stop("Error: The number of centers does not match the expected number of clusters.")
+  }
+} else {
+  stop("Error: The number of points in mds_year does not match the number of clusters.")
+}
+
+# Plot for Month Data
+# First, check if mds_month and kmeans_month$cluster have the same number of rows
+if (nrow(mds_month) == length(kmeans_month$cluster)) {
+  plot(mds_month, col = kmeans_month$cluster, pch = 16, 
+       xlab = "MDS Dimension 1", ylab = "MDS Dimension 2", 
+       main = "K-means Clustering of Month Data in 2D")
+  
+  # Check if kmeans_month$centers has the correct dimensions
+  if (nrow(kmeans_month$centers) == k_month) {
+    points(kmeans_month$centers, col = 1:k_month, pch = 3, cex = 2, lwd = 2)
+  } else {
+    stop("Error: The number of centers does not match the expected number of clusters.")
+  }
+} else {
+  stop("Error: The number of points in mds_month does not match the number of clusters.")
+}
+
+
+```
+Year data has an overlapping clusters, and clost centroids with only one that is far apart from the others.
+```{r}
+# Plot for Month Data
+# First, check if mds_month and kmeans_month$cluster have the same number of rows
+if (nrow(mds_month) == length(kmeans_month$cluster)) {
+  plot(mds_month, col = kmeans_month$cluster, pch = 16, 
+       xlab = "MDS Dimension 1", ylab = "MDS Dimension 2", 
+       main = "K-means Clustering of Month Data in 2D")
+  
+  # Check if kmeans_month$centers has the correct dimensions
+  if (nrow(kmeans_month$centers) == k_month) {
+    points(kmeans_month$centers, col = 1:k_month, pch = 3, cex = 2, lwd = 2)
+  } else {
+    stop("Error: The number of centers does not match the expected number of clusters.")
+  }
+} else {
+  stop("Error: The number of points in mds_month does not match the number of clusters.")
+}
+
+```
+The month data has overlapping clusterswith the centroids being close to each other, this may signify that the clusters are similar in terms of the data they represent
+
+Research questions:
+what are the most popular subjects on Reddit throughout US election seasons, and how do they change over time?
+
+Limitation
+Smaller clusters may contain important but inder-represented perspectives
+
+Based on data from Reddit, the analysis might not accurately represent the opinions of the broader audience. The result might not accurately reflect talks about elections in general due to prejudice created by Reddit's user base
+
+Comapring posts form a month ago and a year ago causes the srudy to miss important things that could have changed the debate between these periods.
+
+Even after preprocessing, some slang or language may still be present in the data, which could influence the accuracy of the insights
+
+Finally, the K-means analysis' number of clusters was manually selected, which might not accurately reflect the data's inherent structure and have an effect on the results.
+
+Conclusion 
+The review of reddit posts about the US elections from a month ago and a year ago reveals significant changes in conversation. K-means clustering showed a clear imbalnce in the clustering results,suggesting thta many postings were inadequately represented and that a small number of subjects dominated the debate. Terms like "Donald Trump and the general election. The year-old data, on the other hand, showed a wider variety of subjects, however the lower clustering density of the year data made it harder to draw precise conclusions. This disparity raises the possibility that while certain individuals- like Trump, remain prominent in the public discourse, other viewpoints and concerns may be neglected

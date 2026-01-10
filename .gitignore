@@ -1,0 +1,8 @@
+.DS_Store
+.Rproj.user
+.Rhistory
+.RData
+*.RData
+*.Rproj.user
+# Video file (too large for GitHub, upload to YouTube instead)
+SWA Project Presentation.mp4

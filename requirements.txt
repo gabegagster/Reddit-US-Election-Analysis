@@ -1,0 +1,15 @@
+RedditExtractoR
+dplyr
+stringr
+RPostgres
+DBI
+tm
+Matrix
+wordcloud
+RColorBrewer
+cluster
+MASS
+ggplot2
+patchwork
+igraph
+SnowballC

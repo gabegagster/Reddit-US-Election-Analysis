@@ -1,0 +1,260 @@
+---
+title: "SWA Assessment Write-Up"
+author: "Luke Dickson"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, preparing_data, warning=FALSE, message=FALSE}
+## Importing Packages
+library(RedditExtractoR)
+library(dplyr)
+library(stringr)
+library(RPostgres)
+library(DBI)
+library(ggplot2)
+library(patchwork)
+
+
+## Connecting to database
+## Connecting to database
+source("../dbconnect.R")
+
+## Loading Tables
+subreddits = dbGetQuery(con, 
+      paste('SELECT * FROM "US_Election_Subreddits_260924"', sep = ""))
+
+elec_posts_by_sub = dbGetQuery(con, 
+      paste('SELECT * FROM "US_Election_Posts_By_Subreddits_Year_260924"', sep = ""))
+
+elec_posts_year = dbGetQuery(con, 
+      paste('SELECT * FROM "US_Election_Posts_Year_260924"', sep = ""))
+```
+
+# Does Online Activity In Election-Related Sub-Reddits Increase as the Election Approaches?
+
+# --- Hypothesis Testing -----------------------------------------------------
+
+The data that was scraped from Reddit has a vast amount of information that can be used to find many relationships. These relationships include how users, communities, and even believes are linked. However, it can also provide information about user habits. Using this data, the online presence of users can be tracked to find relationships between the significant events and their activity. An example of this is to test and see whether the activity in online communities about the US election increase in the lead up to the election itself, as well as around significant milestones in the build up. To test this, the following Hypotheses will be tested:
+$$
+H_0: \text{There is no relationship between the amount online activity in these communities and electoral events}
+$$
+$$
+H_a: \text{The presence in election-related online communities will increase with time as the election approaches} 
+$$
+
+
+## Online Presence Plots
+
+```{r, elec_comments_plot, message=FALSE}
+## Converting date_utc into class Date
+elec_posts_by_sub$date_utc = as.Date(elec_posts_by_sub$date_utc)
+
+## Use ggplot to create a plot for comments over date
+ggplot(elec_posts_by_sub, aes(x = date_utc, y = comments)) +
+  geom_point(size = 0.1) +
+  geom_smooth() +
+  geom_smooth(method = 'lm', col = "red", se = FALSE)+
+  labs(x = "Date", y = "Number of Comments") +
+  ggtitle("Number of Comments on Election Posts over Date")
+```
+
+The above plot shows the the number of comments on a US election related post, based on the date that the post was created. However, it is quite obvious that the data is very scattered - making it hard to observe any trends. In an attempt to overcome this issue, normalisation and scaling techniques were applied to the data using the following formulae:
+
+**Normalisation Formula:**
+$$
+\text{Norm(Comments)} = \frac{\text{Comments on Post}}{\text{Subscribers of Subreddit}}
+$$
+
+**Min-Max Scaling Formula:**
+$$
+\text{Scaled(X)} = \frac{\text{Norm(Comment)} - \text{min(Normalised Comments)}}{\text{max(Normalised Comments) - min(Normalised Comments)}}
+$$
+
+The following functions were created to apply each of the formulae:
+
+```{r, Normalisation_Scaling}
+## Function to normalise comments using above formula
+normalise = function(table){
+  for(row in 1:nrow(table)){
+    comments = table$comments[row]
+    if(!(table$subreddit[row] %in% subreddits$subreddit)){
+      table$normalised[row] = NA
+    } else {
+      subreddit = which(subreddits$subreddit == table$subreddit[row])
+      subscribers = subreddits$subscribers[subreddit]
+      table$normalised[row] = comments/subscribers
+    }
+  }
+  return(table)
+}
+
+## Apply Normalise Function to elec_posts_by_sub
+elec_posts_by_sub = normalise(elec_posts_by_sub)
+elec_posts_by_sub[1:5,c(1,8)]
+
+## Function to scale comments using above formula
+scale = function(table){
+  min_norm = min(table$normalised)
+  max_norm = max(table$normalised)
+  for(row in 1:nrow(table)){
+    norm = table$normalised[row]
+    table$scaled_comments[row] = 
+        (norm - min_norm)/(max_norm - min_norm)
+  }
+  return(table)
+}
+## Apply scale Function to elec_posts_by_sub
+elec_posts_by_sub = scale(elec_posts_by_sub)
+elec_posts_by_sub[1:5,c(1,9)]
+```
+
+After normalising and scaling the number of comments, the trends in the data become much more apparent, as shown in the following plot:
+
+```{r, norm_elec_posts_plot, message=FALSE}
+ggplot(elec_posts_by_sub, aes(x = date_utc, y = scaled_comments)) +
+  labs(x = "Date", y = "Number of Comments") +
+  geom_smooth() +
+  ggtitle("Normalised Number of Comments over Time") 
+```
+
+In the plot above, there is a gradual increase of comments over time, with a clear peak in comments around September 2023. After conducting background research on the timing of events, it was found that this peak aligns with the period where the convictions against Donald Trump were announced. This event is very likely to have contributed to a very significant increase in online presence in communities/subreddits about Donald Trump, hence creating the peak. Otherwise, as time progress and the election approaches, the number of comments in these communities (and therefore the activity/online presence) increases gradually.
+
+Another way to measure the online presence is to count the comments per day on election related posts, rather than the comments individual posts. By summing the total comments on each date, the following plot can be created: 
+
+```{r, total_elec_comms_date_plot, message=FALSE}
+## Sum the total comments per date
+elec_posts_summary = elec_posts_by_sub %>% group_by(date_utc) %>%
+  summarise(comment_count = sum(comments, na.rm = TRUE))
+
+## Plot the above sum over the date
+ggplot(elec_posts_summary, aes(x = date_utc, y = comment_count)) +
+  labs(x = "Date", y = "Total Comments") +
+  geom_point(size = 0.5)+
+  geom_smooth() +
+  geom_smooth(method = 'lm', col = "red", se = FALSE) +
+  ggtitle("Total Number of Comments on Election Related Posts Each Day") 
+```
+
+This plot has a similar shape to the above plot with scaled counts of comments on individual posts. It has the same peak around the announcement of Trump's convictions, as well as a similar gradual increase over time as the election approaches. By applying a linear model to this plot, there is a noticeable increase in gradient - implying there is a positive linear relationship between the two variables. 
+
+In order to see if this relationship is continued, a new dataset is introduced - with information about posts from a year long period, starting in October 2023. This gives us more of an idea of how the activity changes closer to the election, however cannot be normalised/scaled as there is no information about the subreddit which these posts were from. Below is a plot of the total number of comments on each day using this new dataset:
+
+```{r, total_daily_comments_year_data}
+## Sum the total comments per date
+elec_posts_year_summary = elec_posts_year %>% group_by(date_utc) %>%
+  summarise(comment_count = sum(comments, na.rm = TRUE))
+
+elec_posts_year_summary$comment_count[1:10]
+elec_posts_year_summary$date_utc = as.Date(elec_posts_year_summary$date_utc)
+
+## Plot the above sum over the date
+ggplot(elec_posts_year_summary, aes(x = date_utc, y = comment_count)) +
+  labs(x = "Date", y = "Total Comments") +
+  geom_point(size = 0.1) +
+  geom_smooth() +
+  geom_smooth(method = 'lm', col = "red", se = FALSE) +
+  ggtitle("Total Number of Comments on Election Related Posts Each Day (Year Data)") 
+```
+
+This plot shows a steady incline in the number of comments per day from around May 2024 - however appears to begin to drop off in the later weeks of the dataset. There also appears to be many more days that have a large number of comments, that stray greatly from the trend line, once that steady incline begins.
+
+## Online Presence Stats
+
+While the plots that were created above show that there may be some relationship between the date of posts and the number of comments they receive, there is not enough evidence to confirm it. However, statistical analysis can help provide more evidence to either confirm or deny the null hypothesis $H_0$.
+
+```{r, linear_model_total_daily_comments}
+## Count the total number of comments per day as comment_count
+elec_posts_summary = elec_posts_by_sub %>% group_by(date_utc) %>%
+  summarise(comment_count = sum(comments, na.rm = TRUE))
+
+## Create a linear model of daily comment count and date
+comment_count_model = lm(comment_count ~ date_utc, data = elec_posts_summary)
+summary(comment_count_model)
+```
+
+This linear model using the daily total count of comments (rather than the number of comments per post) returns a much lower p-value of `$3.834 \times 10^{-7}$ - indicating that the relationship is much stronger. This implies that, while the number of comments on individual posts does not necessarily increase as the election approaches, the total number of people commenting on election related posts increases. 
+
+In order to confirm this relationship, the same modelling method was applied to the second dataset:
+
+```{r, linear_model_total_daily_comments_year}
+## Count the total number of comments per day as comment_count
+elec_posts_year_summary = elec_posts_year %>% group_by(date_utc) %>%
+  summarise(comment_count = sum(comments, na.rm = TRUE))
+
+elec_posts_year_summary$date_utc = as.Date(elec_posts_year_summary$date_utc)
+
+## Create a linear model of daily comment count and date
+comment_count_year_model = lm(comment_count ~ date_utc, data = elec_posts_year_summary)
+summary(comment_count_year_model)
+```
+
+The summary of this linear model shows the statistics and can help determine the significance of it. A p-value of $5.39 \times 10^{-15}$ is an extremely low p-value - thus indicating there is a strong linear relationship between these two variables. The calculated gradient has a value of 8.054 which is also significantly high - meaning that this model suggests that the date has a very strong effect on the number of comments per day on Reddit.
+
+After further research, it was found that a [Poisson Regression model is a better fit for counts of data](https://ijbnpa.biomedcentral.com/articles/10.1186/s12966-023-01460-y#:~:text=intervals%20(CIs).-,Poisson%20regression%20model,response%20follows%20a%20Poisson%20distribution.), rather than a linear model, so the models were refitted as Poisson regression models below:
+
+```{r, poisson_models}
+## Plot the poisson model for year data
+ggplot(elec_posts_year_summary, aes(x = date_utc, y = comment_count)) +
+  labs(x = "Date", y = "Total Comments") +
+  geom_point(size = 0.1) +
+  geom_smooth() +
+  geom_smooth(method = 'glm', method.args = list(family = "poisson"), col = "red", se = FALSE) +
+  ggtitle("Total Number of Comments on Election Related Posts Each Day (Year Data)") 
+
+## Fitting Subs dataset to poisson model
+poisson_subs = glm(comment_count ~ date_utc, family = "poisson", data = elec_posts_summary)
+summary(poisson_subs)
+```
+
+After fitting a Poisson model to the dataset, the p-value is not nearly as low as it previously was, however is still low enough to be very significant. Returning a value of $2.222 \times 10^{-3}$, this p-value indicates that the model strongly fits the dataset. When adding the model onto the plot, it can be seen that there is a significant rise in the gradient beginning around July 2024, and increasing until the end of the plot - indicating it would continue to rise as time progresses.
+
+```{r, poisson_models.1}
+## Fitting year dataset to poisson model
+poisson_year = glm(comment_count ~ date_utc, family = "poisson", data = elec_posts_year_summary)
+summary(poisson_year)
+```
+
+Likewise with the above model, this model also has a decrease in the p-value, but is still small enough to be very significant. A returned value of $8.175 \times 10^{-3}$ also implies that the model is strong fit for the dataset and indicates that there is a strong relationship present between the two variables. To further test this, the Mean Squared Error (MSE) of both models are computed below:
+
+```{r, mse, error = TRUE}
+## Predictor returns log values
+predicted_log_values = predict(poisson_year, elec_posts_year_summary)
+##Get actual predicted values
+predicted_values = exp(predicted_log_values)
+
+actual_values = elec_posts_year_summary$comment_count
+
+## Calculate MSE
+year_mse = mean((actual_values - predicted_values)^2)
+
+
+## Predictor returns log values
+predicted_log_values = predict(poisson_year, elec_posts_summary)
+##Get actual predicted values
+predicted_values = exp(predicted_log_values)
+
+actual_values = elec_posts_summary$comment_count
+
+## Calculate MSE
+subs_mse = mean((actual_values - predicted_values)^2)
+
+cat("Subs Dataset MSE = ", subs_mse, "\nYears Dataset MSE = ", year_mse)
+```
+
+The result of the MSE returned extremely high results for both models. This is an indicator that there is a high level of variance in the models, and that the variables do not necessarily account for all of randomness/variation in the data. For example, this result means that any specific day will have more comments than the previous day just because it is closer to the election date. Therefore, this shows evidence that there are some other factors involved in the relationship.
+
+# --- Limitations & Conclusions ---------------------------------------------
+
+## Limitations
+
+While quite successful in terms of results, this project did have a few limitations. Due to the pressure of having to complete the project before the due date, time was limited and prevented the analysis from being more in-depth than what it was. Given more time, more tests may have been conducted to gather stronger evidence or find other conclusions. Another limitation was the inability to access certain data. If there was an accessible API for software such as Reddit or X, a much larger amount of data and information would have been readily available and may have contributed to other branches of analysis (Mastodon was considered for its open-source API, however there was too little activity to conduct an analysis such as this).
+
+## Conclusions:
+
+From the testing that was conducted on this data, there is evidence that suggests a relationship that is present between the tested variables and, therefore, reject the Null Hypothesis. However, there is a certain factor of randomness to it that contributes to a high level of variance. These factors could be many things, including worldwide events (political or non-political), or even external factors, such as certain times when online presence is generally higher. Factors such as these acting on the data is present in our dataset - with a peak present at the time of his convictions. From this project, future testing that may be conduced may include a comparison to general online presence to see if there is an increase in all online presence, rather than just those in the electoral communities. Furthermore, more in-depth testing could be performed on these posts - such as frequency of posts per day, posts per subscriber in each subreddit, how the percentage of inactive subscribers changes over time in electoral subreddits, etc. Testing topics such as these can lead to a deeper analysis of this data and can help solidify these findings/confirm these relationships, or discover completely new ones.
+
