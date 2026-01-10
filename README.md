@@ -22,9 +22,10 @@ This project analyzes user activity and content on Reddit during the US Election
 - **Code/Hypothesis Testing**: Statistical tests to valid hypothesis about online activity trends.
 - **Code/dbconnect.R**: Central configuration for database connection.
 
-## Project Presentation
+## Project Documentation
 
-[Watch the Project Presentation](LINK_TO_YOUTUBE_VIDEO)
+[Watch the Project Presentation](https://youtu.be/Bc9YMpr0kl0)
+[Read the Full Project Report](https://raw.githubusercontent.com/gabegagster/Reddit-US-Election-Analysis/main/Documentation/Documentation.pdf)
 
 ## Authors
 
