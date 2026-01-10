@@ -4,7 +4,7 @@ A data analysis project examining Reddit posts related to the US Election.
 
 ## Description
 
-This project analyzes user activity and content on Reddit during the US Election period, utilizing clustering and network analysis techniques to understand community structures and topic prevalence.
+This project analyzes user activity and content on Reddit during the US Election period 2024, utilizing clustering and network analysis techniques to understand community structures and topic prevalence.
 
 ## Main Findings
 
