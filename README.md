@@ -22,9 +22,17 @@ This project analyzes user activity and content on Reddit during the US Election
 
 The dataset is derived from prominent US-focused subreddits and posts, capturing both short-term (past month) and long-term (past year) trends. It includes metadata, user activity, and engagement metrics to facilitate a nuanced investigation into online political conversations.
 
+<<<<<<< HEAD
 ## 🚀 Methodology
 
 The project employs a multi-faceted approach to analyze the data:
+=======
+## Project Documentation
+
+[Watch the Project Presentation](https://youtu.be/Bc9YMpr0kl0)
+
+[Read the Full Project Report](https://raw.githubusercontent.com/gabegagster/Reddit-US-Election-Analysis/main/Documentation/Documentation.pdf)
+>>>>>>> bd411a8e98ee1635f509b4b55f973ec1f75719c4
 
 ### 1. Hypothesis Testing
 Statistical tests to validate hypotheses about the relationship between electoral timelines and user engagement spikes.
