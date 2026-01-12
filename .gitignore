@@ -6,4 +6,4 @@
 *.Rproj.user
 # Video file (too large for GitHub, upload to YouTube instead)
 SWA Project Presentation.mp4
-Documentation/SWA Project Presentation.pptx
+*.pptx
