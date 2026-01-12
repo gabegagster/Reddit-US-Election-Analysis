@@ -5,7 +5,7 @@ output:
      number_sections: true
      toc: true
 author: "Luke Dickson, Tom Finke, Gabriel Himmelein, Margarette Mendoza​"
-date: "`r Sys.Date()`"
+date: "October 2024"
 editor_options: 
   markdown: 
     wrap: sentence
@@ -23,12 +23,12 @@ knitr::opts_chunk$set(
 \newpage 
 # Contributions {-}
 
-| Student ID | Name                | Contribution |
-|------------|---------------------|--------------|
-| 19970266   | Luke Dickson        | 25%          |
-| 22166511   | Tom Finke           | 25%          |
-| 22166413   | Gabriel Himmelein   | 25%          |
-| 22033701   | Margarette Mendozza | 25%          |
+| Name                | Contribution |
+|---------------------|--------------|
+| Luke Dickson        | 25%          |
+| Tom Finke           | 25%          |
+| Gabriel Himmelein   | 25%          |
+| Margarette Mendozza | 25%          |
 
 
 # Introduction
@@ -121,7 +121,7 @@ dbconnect = function() {
 We provide you the CSV-files for you to circumvent this step.
 
 ```{r}
-work_dir = "Datasets" 
+work_dir = "../Datasets" 
 ```
 
 ```{r}
@@ -559,29 +559,11 @@ library(ggplot2)
 library(patchwork)
 
 
-## Connecting to database
-gabUser = "gabriel"
-gabPw = {
-  "CgYkoLFAYsNvStdh"
-}
-
-con = DBI::dbConnect(RPostgres::Postgres(), dbname = "redditdata",
-                     host = "188.245.90.113", port = 5432,
-                     user = gabUser, password = gabPw)
-
-## Remove Passwords
-rm(pw)
-rm(gabPw)
-
-## Loading Tables
-subreddits = dbGetQuery(con, 
-      paste('SELECT * FROM "US_Election_Subreddits_260924"', sep = ""))
-
-elec_posts_by_sub = dbGetQuery(con, 
-      paste('SELECT * FROM "US_Election_Posts_By_Subreddits_Year_260924"', sep = ""))
-
-elec_posts_year = dbGetQuery(con, 
-      paste('SELECT * FROM "US_Election_Posts_Year_260924"', sep = ""))
+## Loading Tables from CSVs
+# Note: DB connection is skipped for reproducibility without DB access
+subreddits = read.csv("../Datasets/US_Election_Subreddits_260924.csv")
+elec_posts_by_sub = read.csv("../Datasets/US_Election_Posts_By_Subreddits_Year_260924.csv")
+elec_posts_year = read.csv("../Datasets/US_Election_Posts_Year_260924.csv")
 ```
 
 ## Online Presence Plots
@@ -859,18 +841,20 @@ Data Fetching
 ```{r}
 username = "gabriel"  # TODO: enter username
 pw = "CgYkoLFAYsNvStdh"  # TODO: enter password
-con = DBI::dbConnect(RPostgres::Postgres(), dbname = "redditdata", 
-                     host = "188.245.90.113", port = 5432, user = username, 
-                     password = pw)
+# con = DBI::dbConnect(RPostgres::Postgres(), dbname = "redditdata", 
+#                      host = "188.245.90.113", port = 5432, user = username, 
+#                      password = pw)
 rm(pw)  # Remove password for security
 
 # Fetch data from the database
 tablename_year <- "US_Election_Posts_Year_260924"
 tablename_month <- "US_Election_Posts_Month_260924"
 
-data_year <- dbGetQuery(con, paste('SELECT * FROM "', tablename_year, '"', sep = ""))
-data_month <- dbGetQuery(con, paste('SELECT * FROM "', tablename_month, '"', sep = ""))
+# data_year <- dbGetQuery(con, paste('SELECT * FROM "', tablename_year, '"', sep = ""))
+# data_month <- dbGetQuery(con, paste('SELECT * FROM "', tablename_month, '"', sep = ""))
 
+data_year = read.csv(paste0("../Datasets/", tablename_year, ".csv"), stringsAsFactors = FALSE)
+data_month = read.csv(paste0("../Datasets/", tablename_month, ".csv"), stringsAsFactors = FALSE)
 ```
 
 Processing of text
@@ -1126,42 +1110,7 @@ We posed the following research questions that we wanted to answer by creating a
 ## DB Connection
 
 ```{r, include=FALSE}
-options(error = rlang::entrace)
-options(scipen = -1, digits = 2) # prefer scientific notation and 2 digits
-```
-
-```{r, include=FALSE}
-db = "redditdata"
-host_db = "188.245.90.113" 
-db_port = "5432"
-db_user = "tom"
-```
-
-```{r, include=FALSE}
-walletHandle = system(
-  "qdbus org.kde.kwalletd5 /modules/kwalletd5 org.kde.KWallet.open kdewallet 0 redditdbconnector",
-  intern=TRUE
-)
-db_password = system(
-  paste(
-    "qdbus org.kde.kwalletd5 /modules/kwalletd5 org.kde.KWallet.readPassword",
-    walletHandle,
-    "WSU RedditDB redditdbconnector", 
-    sep=" "), 
-  intern=TRUE
-)
-```
-
-```{r}
-library("RPostgres")
-library("DBI")
-db_con = dbConnect(
-  RPostgres::Postgres(), 
-  dbname = db, host=host_db,
-  port=db_port,
-  user=db_user,
-  password=db_password
-)
+# DB Connection removed
 ```
 
 ## Getting Data
@@ -1182,27 +1131,30 @@ fetch_data = function(
     min_posts = 2,
     max_users = 100
 ){
-    # we want to select the top x users based on the number of posts they made
-    query = paste('
-      select p.subreddit, u.username, count(*) as count
-      from user_posts u 
-      inner join "', posts_table, '" p 
-          on p.url = u.url
-      where u.username != \'[deleted]\'
-      and u.username in
-          (
-              select username from user_posts u_i
-              inner join "', posts_table, '" p_i 
-                on p_i.url = u_i.url
-              group by username
-              having count(username) >=', min_posts,'
-              order by count(username) desc
-              limit ', max_users, '    
-          )
-      group by 1,2
-      order by 3 desc
-    ', sep='')
-    data = dbGetQuery(db_con, query)
+    # Load data
+    posts_df = read.csv(paste0("../Datasets/", posts_table, ".csv"), stringsAsFactors=FALSE)
+    user_posts_df = read.csv("../Datasets/user_posts.csv", stringsAsFactors=FALSE)
+    
+    joined = user_posts_df %>% 
+        inner_join(posts_df, by="url") %>%
+        filter(username != "[deleted]")
+        
+    top_users = joined %>%
+        group_by(username) %>%
+        summarise(user_count = n()) %>%
+        filter(user_count >= min_posts) %>%
+        arrange(desc(user_count)) %>%
+        head(max_users) %>%
+        pull(username)
+        
+    data = joined %>%
+        filter(username %in% top_users) %>%
+        group_by(subreddit, username) %>%
+        summarise(count = n()) %>%
+        arrange(desc(count)) %>%
+        ungroup() %>%
+        as.data.frame()
+
     return(data)
 }
 ```
@@ -1480,16 +1432,7 @@ First, lets write the communities to the database for easier selection of posts 
 
 ```{r}
 write_communities_to_db = function(communities){
-  
-    membership = data.frame(username=communities$names, community=communities$membership)
-
-    dbWriteTable(
-    db_con,
-    "user_communities",  # table name
-    membership,  # dataframe
-    overwrite = TRUE,  # overwrite existing table (default is FALSE)
-    append = FALSE  # append to existing table (default is FALSE)
-    )
+  # No-op since we do not use DB
 }
 ```
 
@@ -1502,18 +1445,21 @@ We can visualize this by creating piecharts for each community.
 
 ```{r}
 library("dplyr")
-community_piecharts = function(posts_table){
+community_piecharts = function(posts_table_name, communities){
+    # Load data locally
+    posts_df = read.csv(paste0("../Datasets/", posts_table_name, ".csv"), stringsAsFactors=FALSE)
+    user_posts_df = read.csv("../Datasets/user_posts.csv", stringsAsFactors=FALSE)
+    
+    membership = data.frame(username=communities$names, community=communities$membership)
+    
   # now we can add pie charts showing of what proportion of subreddits certain communities are made up
-    subreddits_in_communities = dbGetQuery(db_con, paste('
-    select c.community, p.subreddit, count(p.subreddit)
-    from user_posts u 
-    inner join "', posts_table, '" p 
-        on p.url = u.url
-    inner join user_communities c
-        on c.username = u.username
-    group by 1,2
-    order by c.community
-    ', sep=''))
+    subreddits_in_communities = user_posts_df %>% 
+        inner_join(posts_df, by="url") %>%
+        inner_join(membership, by="username") %>%
+        group_by(community, subreddit) %>%
+        summarise(count = n()) %>%
+        arrange(community) %>%
+        as.data.frame()
 
     communities_names =  unique(subreddits_in_communities$community)
     subreddits_names = unique(subreddits_in_communities$subreddit)
@@ -1556,7 +1502,7 @@ community_piecharts = function(posts_table){
 ```
 
 ```{r}
-community_piecharts("US_Election_Posts_By_Subreddits_Year_260924")
+community_piecharts("US_Election_Posts_By_Subreddits_Year_260924", communities)
 ```
 
 There seems to be one cluster mainly made up of the Republican subreddit.
@@ -1579,16 +1525,18 @@ library("tm")
 library("SnowballC")
 library("wordcloud")
 community_wordclouds = function(posts_table, communities){
-    posts_in_communities = dbGetQuery(db_con, paste('
-      select c.community, string_agg(p.title || p.text, \' \') as text
-      from user_posts u 
-      inner join "', posts_table, '" p 
-          on p.url = u.url
-      inner join user_communities c
-          on c.username = u.username
-      group by 1
-      order by c.community
-    ', sep=''))
+    posts_df = read.csv(paste0("../Datasets/", posts_table, ".csv"), stringsAsFactors=FALSE)
+    user_posts_df = read.csv("../Datasets/user_posts.csv", stringsAsFactors=FALSE)
+    membership = data.frame(username=communities$names, community=communities$membership)
+    
+    posts_in_communities = user_posts_df %>% 
+        inner_join(posts_df, by="url") %>%
+        inner_join(membership, by="username") %>%
+        mutate(full_text = paste(title, text)) %>%
+        group_by(community) %>%
+        summarise(text = paste(full_text, collapse = " ")) %>%
+        arrange(community) %>%
+        as.data.frame()
 
 
     
@@ -1650,11 +1598,10 @@ Interestingly the "republican" community seems to talk more about democrats whil
 Finally we can put it all together in one reusable function
 
 ```{r}
-data_analysis_and_plot = function(
+analyze_network_graph = function(
     posts_table,
     min_posts = 2,
-    max_users = 100,
-    write_to_file = FALSE
+    max_users = 100
 ){
     data=fetch_data(posts_table, min_posts, max_users)
     df.weighted.matrix = tf_idf(data, "username", "subreddit", "count")
@@ -1663,7 +1610,11 @@ data_analysis_and_plot = function(
     g = r[[1]]
     communities = r[[2]]
     write_communities_to_db(communities)
-    community_piecharts(posts_table)
+    return(communities)
+}
+
+analyze_community_content = function(posts_table, communities){
+    community_piecharts(posts_table, communities)
     community_wordclouds(posts_table, communities)
 }
 ```
@@ -1672,8 +1623,12 @@ In our first dataset we scraped all posts from the top 10 subreddits surrounding
 Unsurprisingly, this resulted in communities that largely correspond to subreddits and do not overlap a lot.
 It is interesting to see that the Republican and the progun subreddits are highly associated, which could be expected.
 
-```{r top_10_subreddits, warning=FALSE}
-data_analysis_and_plot("US_Election_Posts_By_Subreddits_Year_260924")
+```{r top_10_subreddits_graph, warning=FALSE, fig.width=14, fig.height=10, out.width='100%'}
+communities = analyze_network_graph("US_Election_Posts_By_Subreddits_Year_260924")
+```
+
+```{r top_10_subreddits_content, warning=FALSE}
+analyze_community_content("US_Election_Posts_By_Subreddits_Year_260924", communities)
 ```
 
 One limitation for the data analysis that I found is that when looking at only the top 10 subreddits, we get a lot of different users but not many posts by any given user.
@@ -1684,8 +1639,12 @@ This gives us more communities and also more diverse communities.
 There is still a Republican / Conservatives Community but no democrat dominant community anymore.
 This could hint at that republicans tend to stay inside their bubble on reddit while democrats tend to post a lot in other forums as well
 
-```{r all_users, warning=FALSE}
-data_analysis_and_plot("US_election_posts_by_users")
+```{r all_users_graph, warning=FALSE, fig.width=14, fig.height=10, out.width='100%'}
+communities = analyze_network_graph("US_election_posts_by_users")
+```
+
+```{r all_users_content, warning=FALSE}
+analyze_community_content("US_election_posts_by_users", communities)
 ```
 
 ```{r, echo=FALSE, eval=FALSE}

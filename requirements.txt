@@ -13,3 +13,4 @@ ggplot2
 patchwork
 igraph
 SnowballC
+rmarkdown
