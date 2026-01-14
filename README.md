@@ -73,7 +73,7 @@ Rscript -e "rmarkdown::render('Documentation/Documentation.rmd')"
 
 | Team Member | Role | Responsibilities |
 | :--- | :--- | :--- |
-| **Gabriel Himmelein** | **Data Engineer** | • Data scraping and preprocessing |
+| **Gabriel Himmelein** | **Team Lead & Data Engineer** | • Data scraping and preprocessing<br> • Project coordination |
 | **Tom Finke** | **Network Analyst** | • Database provision<br>• Network analysis |
 | **Luke Dickson** | **Data Analyst** | • Hypothesis testing |
 | **Margarette Mendoza** | **Data Analyst** | • Cluster analysis |
